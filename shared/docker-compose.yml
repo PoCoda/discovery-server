@@ -1,0 +1,121 @@
+version: '2'
+networks:
+  default:
+    external:
+      name: external-example
+
+services:
+  discovery-server:
+    image: 'discovery-server:latest'
+    build:
+      context: ./discovery-server/discovery/
+    container_name: discovery-server
+    ports:
+      - 8761:8761
+
+  aggregator-service:
+    image: 'aggregator-service:latest'
+    build:
+      context: ./aggregator-service/aggregator/
+    container_name: aggregator-service
+    depends_on:
+      - discovery-server
+      - user-service
+    ports:
+      - 8882:8882
+
+  user-service:
+    image: 'user-service:latest'
+    build:
+      context: ./user-service/user/
+    container_name: user-service
+    depends_on:
+      - discovery-server
+      - user-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://user-db:5432/user-db
+      - SPRING_DATASOURCE_USERNAME=user-db-user
+      - SPRING_DATASOURCE_PASSWORD=user-db-password
+      - WEATHER_API_KEY=fd69b05eb60d4d78a7d104128210711
+      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    ports:
+      - 5001:5005
+      - 8881:8881
+
+
+  gateway-service:
+    image: 'gateway-service:latest'
+    build:
+      context: ./gateway-service/gateway/
+    container_name: gateway-service
+    depends_on:
+      - discovery-server
+      - user-service
+      - aggregator-service
+    ports:
+      - 8080:8080
+
+  weather-service:
+    image: 'weather-service:latest'
+    build:
+      context: ./weather-service/weather/
+    container_name: weather-service
+    depends_on:
+      - discovery-server
+      - weather-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://weather-db:5432/weather-db
+      - SPRING_DATASOURCE_USERNAME=weather-db-user
+      - SPRING_DATASOURCE_PASSWORD=weather-db-password
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - WEATHER_API_KEY=fd69b05eb60d4d78a7d104128210711
+      - WEATHER_API_URL=http://api.weatherapi.com/v1
+      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    ports:
+      - 5007:5005
+      - 8887:8080
+
+  user-db:
+    image: postgres
+    container_name: user-db
+    environment:
+      - POSTGRES_DB=user-db
+      - POSTGRES_USER=user-db-user
+      - POSTGRES_PASSWORD=user-db-password
+    ports:
+      - 5551:5432
+
+  weather-db:
+    image: postgres
+    container_name: weather-db
+    environment:
+      - POSTGRES_DB=weather-db
+      - POSTGRES_USER=weather-db-user
+      - POSTGRES_PASSWORD=weather-db-password
+    ports:
+      - 5557:5432
+
+  prometheus:
+    image: prom/prometheus:v2.32.1
+    ports:
+      - 9090:9090
+    depends_on:
+      - gateway-service
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    command: --web.enable-lifecycle  --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    build:
+      context: ./grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  prometheus-data:
+
+  grafana-data:
