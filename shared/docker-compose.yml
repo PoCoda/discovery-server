@@ -1,14 +1,10 @@
 version: '2'
-networks:
-  default:
-    external:
-      name: external-example
 
 services:
   discovery-server:
     image: 'discovery-server:latest'
     build:
-      context: ./discovery-server/discovery/
+      context: ../discovery
     container_name: discovery-server
     ports:
       - 8761:8761
@@ -16,7 +12,7 @@ services:
   aggregator-service:
     image: 'aggregator-service:latest'
     build:
-      context: ./aggregator-service/aggregator/
+      context: ../../aggregator-service/aggregator
     container_name: aggregator-service
     depends_on:
       - discovery-server
@@ -27,7 +23,7 @@ services:
   user-service:
     image: 'user-service:latest'
     build:
-      context: ./user-service/user/
+      context: ../../user-service/user
     container_name: user-service
     depends_on:
       - discovery-server
@@ -46,7 +42,7 @@ services:
   gateway-service:
     image: 'gateway-service:latest'
     build:
-      context: ./gateway-service/gateway/
+      context: ../../gateway-service/gateway
     container_name: gateway-service
     depends_on:
       - discovery-server
@@ -58,7 +54,7 @@ services:
   weather-service:
     image: 'weather-service:latest'
     build:
-      context: ./weather-service/weather/
+      context: ../../weather-service/weather
     container_name: weather-service
     depends_on:
       - discovery-server
@@ -74,6 +70,18 @@ services:
     ports:
       - 5007:5005
       - 8887:8080
+
+  air-info-server:
+    image: 'air-info-server:latest'
+    build:
+      context: ../../air-info-server
+    container_name: air-info-server
+    depends_on:
+      - discovery-server
+    environment:
+      - AIRLY_API_KEY=qG2JaaoXyCa1xyRMW21kJ11mq5NyAG8A
+    ports:
+      - 9998:9998
 
   user-db:
     image: postgres
@@ -108,12 +116,57 @@ services:
 
   grafana:
     build:
-      context: ./grafana
+      context: ../../grafana
     container_name: grafana
     ports:
       - 3000:3000
     volumes:
       - grafana-data:/var/lib/grafana
+
+  # MongoDB: https://hub.docker.com/_/mongo/
+  mongodb:
+    image: mongo:4.2
+  # Elasticsearch: https://www.elastic.co/guide/en/elasticsearch/reference/7.10/docker.html
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2
+    environment:
+      - http.host=0.0.0.0
+      - transport.host=localhost
+      - network.host=0.0.0.0
+      - "ES_JAVA_OPTS=-Dlog4j2.formatMsgNoLookups=true -Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 1g
+  # Graylog: https://hub.docker.com/r/graylog/graylog/
+  graylog:
+    image: graylog/graylog:4.2-arm64
+    environment:
+      # CHANGE ME (must be at least 16 characters)!
+      - GRAYLOG_PASSWORD_SECRET=somepasswordpepper
+      # Password: admin
+      - GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      - GRAYLOG_HTTP_EXTERNAL_URI=http://127.0.0.1:9000/
+    entrypoint: /usr/bin/tini -- wait-for-it elasticsearch:9200 --  /docker-entrypoint.sh
+    links:
+      - mongodb:mongo
+      - elasticsearch
+    restart: always
+    depends_on:
+      - mongodb
+      - elasticsearch
+    ports:
+      # Graylog web interface and REST API
+      - 9000:9000
+      # Syslog TCPch
+      - 1514:1514
+      # Syslog UDP
+      - 1514:1514/udp
+      # GELF TCP
+      - 12201:12201
+      # GELF UDP
+      - 12201:12201/udp
 
 volumes:
   prometheus-data:
