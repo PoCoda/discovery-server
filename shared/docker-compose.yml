@@ -4,7 +4,7 @@ services:
   discovery-server:
     image: 'discovery-server:latest'
     build:
-      context: ../discovery
+      context: ./discovery-server/discovery/
     container_name: discovery-server
     ports:
       - 8761:8761
@@ -12,7 +12,7 @@ services:
   aggregator-service:
     image: 'aggregator-service:latest'
     build:
-      context: ../../aggregator-service/aggregator
+      context: ./aggregator-service/aggregator/
     container_name: aggregator-service
     depends_on:
       - discovery-server
@@ -23,7 +23,7 @@ services:
   user-service:
     image: 'user-service:latest'
     build:
-      context: ../../user-service/user
+      context: ./user-service/user
     container_name: user-service
     depends_on:
       - discovery-server
@@ -42,7 +42,7 @@ services:
   gateway-service:
     image: 'gateway-service:latest'
     build:
-      context: ../../gateway-service/gateway
+      context: ./gateway-service/gateway
     container_name: gateway-service
     depends_on:
       - discovery-server
@@ -54,11 +54,12 @@ services:
   weather-service:
     image: 'weather-service:latest'
     build:
-      context: ../../weather-service/weather
+      context: ./weather-service/weather
     container_name: weather-service
     depends_on:
       - discovery-server
       - weather-db
+      - graylog
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://weather-db:5432/weather-db
       - SPRING_DATASOURCE_USERNAME=weather-db-user
@@ -74,7 +75,7 @@ services:
   air-info-server:
     image: 'air-info-server:latest'
     build:
-      context: ../../air-info-server
+      context: ./air-info-server
     container_name: air-info-server
     depends_on:
       - discovery-server
@@ -116,7 +117,7 @@ services:
 
   grafana:
     build:
-      context: ../../grafana
+      context: ./grafana
     container_name: grafana
     ports:
       - 3000:3000
@@ -142,6 +143,7 @@ services:
   # Graylog: https://hub.docker.com/r/graylog/graylog/
   graylog:
     image: graylog/graylog:4.2-arm64
+    container_name: pocoda-graylog
     environment:
       # CHANGE ME (must be at least 16 characters)!
       - GRAYLOG_PASSWORD_SECRET=somepasswordpepper
